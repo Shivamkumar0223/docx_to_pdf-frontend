@@ -1,6 +1,12 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { FaFileWord } from "react-icons/fa6";
 import axios from "axios";
+
+const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(
+  /\/+$/,
+  ""
+);
+
 function Home() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [convert, setConvert] = useState("");
@@ -19,39 +25,40 @@ function Home() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     try {
-      const response = await axios.post(
-        "http://localhost:3000/convertFile",
-        formData,
-        {
-          responseType: "blob",
-        }
-      );
-      console.log(response.data);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      console.log(url);
+      const response = await axios.post(`${apiUrl}/convertFile`, formData, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(response.data);
       const link = document.createElement("a");
-      console.log(link);
       link.href = url;
-      console.log(link);
       link.setAttribute(
         "download",
         selectedFile.name.replace(/\.[^/.]+$/, "") + ".pdf"
       );
-      console.log(link);
       document.body.appendChild(link);
-      console.log(link);
       link.click();
-      link.parentNode.removeChild(link);
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       setSelectedFile(null);
       setDownloadError("");
       setConvert("File Converted Successfully");
     } catch (error) {
-      console.log(error);
-      if (error.response && error.response.status == 400) {
-        setDownloadError("Error occurred: ", error.response.data.message);
-      } else {
-        setConvert("");
+      let message = "Unable to convert the file. Please try again.";
+      const responseData = error.response?.data;
+
+      if (responseData instanceof Blob) {
+        const responseText = await responseData.text();
+        try {
+          message = JSON.parse(responseText).message || message;
+        } catch {
+          message = responseText || message;
+        }
+      } else if (responseData?.message) {
+        message = responseData.message;
       }
+
+      setDownloadError(message);
+      setConvert("");
     }
   };
   return (
